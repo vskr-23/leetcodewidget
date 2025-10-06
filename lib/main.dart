@@ -1,122 +1,186 @@
 import 'package:flutter/material.dart';
+import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:device_preview/device_preview.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'landing_page.dart';
+import 'dashboard_page.dart';
+import 'services/notification_service.dart';
 
-void main() {
-  runApp(const MyApp());
+// Minimal profile model for only the requested fields
+class LeetCodeProfile {
+  final String username;
+  final String realName;
+  final String avatarUrl;
+  final String countryName;
+  final int problemsSolved;
+  final int easySolved;
+  final int mediumSolved;
+  final int hardSolved;
+  final int easyTotal;
+  final int mediumTotal;
+  final int hardTotal;
+  final List<dynamic> badges;
+  final Map<String, dynamic>? activeBadge;
+  final String submissionCalendar;
+  final double contestRating;
+  final int globalRanking;
+  final int attendedContestsCount;
+  final double topPercentage;
+
+  LeetCodeProfile({
+    required this.username,
+    required this.realName,
+    required this.avatarUrl,
+    required this.countryName,
+    required this.problemsSolved,
+    required this.easySolved,
+    required this.mediumSolved,
+    required this.hardSolved,
+    required this.easyTotal,
+    required this.mediumTotal,
+    required this.hardTotal,
+    required this.badges,
+    this.activeBadge,
+    required this.submissionCalendar,
+    required this.contestRating,
+    required this.globalRanking,
+    required this.attendedContestsCount,
+    required this.topPercentage,
+  });
+
+  factory LeetCodeProfile.fromGraphQL(Map<String, dynamic> data) {
+    final matchedUser = data['matchedUser'] ?? {};
+    final profile = matchedUser['profile'] ?? {};
+    final submitStats = matchedUser['submitStats'] ?? {};
+    final acSubmissionNum = submitStats['acSubmissionNum'] ?? [];
+    final allQuestionsCount = data['allQuestionsCount'] ?? [];
+    final badges = matchedUser['badges'] ?? [];
+    final activeBadge = matchedUser['activeBadge'];
+    final userCalendar = matchedUser['userCalendar'] ?? {};
+    final submissionCalendar = userCalendar['submissionCalendar'] ?? '';
+    final contestData = data['userContestRanking'] ?? {};
+    int problemsSolved = 0, easySolved = 0, mediumSolved = 0, hardSolved = 0;
+    int easyTotal = 0, mediumTotal = 0, hardTotal = 0;
+    for (var item in acSubmissionNum) {
+      final diff = (item['difficulty'] ?? '').toString().toLowerCase();
+      if (diff == 'all') problemsSolved = item['count'] ?? 0;
+      if (diff == 'easy') easySolved = item['count'] ?? 0;
+      if (diff == 'medium') mediumSolved = item['count'] ?? 0;
+      if (diff == 'hard') hardSolved = item['count'] ?? 0;
+    }
+    for (var item in allQuestionsCount) {
+      final diff = (item['difficulty'] ?? '').toString().toLowerCase();
+      if (diff == 'easy') easyTotal = item['count'] ?? 0;
+      if (diff == 'medium') mediumTotal = item['count'] ?? 0;
+      if (diff == 'hard') hardTotal = item['count'] ?? 0;
+    }
+    return LeetCodeProfile(
+      username: matchedUser['username'] ?? '',
+      realName: profile['realName'] ?? '',
+      avatarUrl: profile['userAvatar'] ?? '',
+      countryName: profile['countryName'] ?? '',
+      problemsSolved: problemsSolved,
+      easySolved: easySolved,
+      mediumSolved: mediumSolved,
+      hardSolved: hardSolved,
+      easyTotal: easyTotal,
+      mediumTotal: mediumTotal,
+      hardTotal: hardTotal,
+      badges: badges,
+      activeBadge: activeBadge,
+      submissionCalendar: submissionCalendar,
+      contestRating: (contestData['rating'] ?? 0).toDouble(),
+      globalRanking: profile['ranking'] ?? 0, // changed
+      attendedContestsCount: contestData['attendedContestsCount'] ?? 0,
+      topPercentage: (contestData['topPercentage'] ?? 0).toDouble(),
+    );
+  }
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initHiveForFlutter();
+
+  // Initialize notification service
+  await NotificationService().initialize();
+
+  runApp(DevicePreview(enabled: true, builder: (context) => MyApp()));
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+    final HttpLink httpLink = HttpLink('https://leetcode.com/graphql');
+    ValueNotifier<GraphQLClient> client = ValueNotifier(
+      GraphQLClient(
+        link: httpLink,
+        cache: GraphQLCache(store: HiveStore()),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+    );
+    return GraphQLProvider(
+      client: client,
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        builder: DevicePreview.appBuilder,
+        useInheritedMediaQuery: true,
+        locale: DevicePreview.locale(context),
+        title: 'LeetCode Dashboard',
+        theme: ThemeData(
+          brightness: Brightness.dark,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.deepPurple,
+            brightness: Brightness.dark,
+          ),
+          cardColor: const Color(0xFF22232B),
+          scaffoldBackgroundColor: const Color(0xFF181920),
+        ),
+        home: _RootNavigator(),
+      ),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
+class _RootNavigator extends StatefulWidget {
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<_RootNavigator> createState() => _RootNavigatorState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _RootNavigatorState extends State<_RootNavigator> {
+  String? _username;
 
-  void _incrementCounter() {
+  @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+  }
+
+  Future<void> _loadUsername() async {
+    final prefs = await SharedPreferences.getInstance();
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _username = prefs.getString('leetcode_username');
+    });
+  }
+
+  void _onUsernameEntered(String username) {
+    setState(() {
+      _username = username;
+    });
+  }
+
+  void _onSignOut() {
+    setState(() {
+      _username = null;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
-    );
+    if (_username == null || _username!.isEmpty) {
+      return LandingPage(onUsernameEntered: _onUsernameEntered);
+    } else {
+      return DashboardPage(username: _username!, onSignOut: _onSignOut);
+    }
   }
 }

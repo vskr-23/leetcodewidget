@@ -1,0 +1,60 @@
+# This file contains the GraphQL query to fetch LeetCode user profile data
+# Save as leetcode_profile_query.graphql
+
+query getUserProfile($username: String!) {
+  matchedUser(username: $username) {
+    username
+    profile {
+      realName
+      userAvatar
+      aboutMe
+      school
+      websites
+      countryName
+      company
+      jobTitle
+      skillTags
+      reputation
+      ranking
+      badges {
+        name
+        icon
+        description
+      }
+    }
+    submitStats {
+      acSubmissionNum {
+        difficulty
+        count
+      }
+      totalSubmissionNum {
+        difficulty
+        count
+      }
+    }
+    calendar
+    contestRanking {
+      rating
+      globalRanking
+      totalParticipants
+      topPercentage
+      attendedContestsCount
+    }
+    contestHistory {
+      contest {
+        title
+        startTime
+      }
+      ranking
+      score
+      finishTime
+      problemsSolved
+      rating
+    }
+  }
+  streakCounter {
+    streakCount
+    daysSkipped
+    currentDayCompleted
+  }
+}
