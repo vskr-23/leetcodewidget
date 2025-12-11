@@ -2,6 +2,16 @@
     <!-- Add Internet permission -->
     <uses-permission android:name="android.permission.INTERNET" />
     
+    <!-- Notification permissions -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    
+    <!-- Calendar permissions for calendar integration -->
+    <uses-permission android:name="android.permission.READ_CALENDAR"/>
+    <uses-permission android:name="android.permission.WRITE_CALENDAR"/>
+    
     <application
         android:label="LeetCode Widget"
         android:name="${applicationName}"

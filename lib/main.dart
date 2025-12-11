@@ -104,7 +104,7 @@ void main() async {
   // Initialize notification service
   await NotificationService().initialize();
 
-  runApp(DevicePreview(enabled: true, builder: (context) => MyApp()));
+  runApp(DevicePreview(enabled: false, builder: (context) => MyApp()));
 }
 
 class MyApp extends StatelessWidget {
@@ -123,9 +123,6 @@ class MyApp extends StatelessWidget {
       client: client,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        builder: DevicePreview.appBuilder,
-        useInheritedMediaQuery: true,
-        locale: DevicePreview.locale(context),
         title: 'LeetCode Dashboard',
         theme: ThemeData(
           brightness: Brightness.dark,

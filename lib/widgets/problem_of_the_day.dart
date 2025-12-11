@@ -24,7 +24,6 @@ class _ProblemOfTheDayState extends State<ProblemOfTheDay> {
   bool _isSolved = false;
   final NotificationService _notificationService = NotificationService();
   bool _hasReminder = false;
-  final String _reminderId = 'daily_problem_reminder';
 
   @override
   void initState() {
@@ -34,11 +33,17 @@ class _ProblemOfTheDayState extends State<ProblemOfTheDay> {
   }
 
   Future<void> _loadReminderStatus() async {
-    final activeReminders = await _notificationService.getActiveReminders();
+    // Check if 2-hour recurring reminders are active
+    final hasRecurringReminders = await _notificationService
+        .areRecurringDailyRemindersActive();
+
+    // If problem is already solved, ensure reminders are stopped
+    if (_isSolved && hasRecurringReminders) {
+      await _notificationService.markDailyProblemAsSolved();
+    }
+
     setState(() {
-      _hasReminder = activeReminders.any(
-        (reminder) => reminder['contestName'] == _reminderId,
-      );
+      _hasReminder = hasRecurringReminders && !_isSolved;
     });
   }
 
@@ -50,11 +55,19 @@ class _ProblemOfTheDayState extends State<ProblemOfTheDay> {
         _isSolved = widget.solved;
       });
 
-      // If problem is now solved, cancel any active reminders
+      // If problem is now solved, mark it as solved and auto-cancel reminders
       if (_isSolved && _hasReminder) {
-        _cancelDailyReminders();
+        _markProblemAsSolved();
       }
     }
+  }
+
+  // Mark problem as solved and auto-cancel reminders
+  Future<void> _markProblemAsSolved() async {
+    await _notificationService.markDailyProblemAsSolved();
+    setState(() {
+      _hasReminder = false;
+    });
   }
 
   Future<void> _toggleDailyReminder() async {
@@ -73,6 +86,22 @@ class _ProblemOfTheDayState extends State<ProblemOfTheDay> {
   }
 
   Future<void> _setDailyReminder() async {
+    // Double-check if problem is already solved
+    final isProblemSolved = await _notificationService.isDailyProblemSolved(
+      widget.problemTitle,
+    );
+    if (isProblemSolved || _isSolved) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Problem already solved! No reminders needed 🎉'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      return;
+    }
+
     final hasPermission = await _notificationService.requestPermissions();
     if (!hasPermission) {
       if (mounted) {
@@ -83,7 +112,8 @@ class _ProblemOfTheDayState extends State<ProblemOfTheDay> {
       return;
     }
 
-    await _notificationService.scheduleDailyProblemReminders(
+    // Start 2-hour recurring reminders
+    await _notificationService.startRecurringDailyReminders(
       widget.problemTitle,
     );
 
@@ -94,9 +124,12 @@ class _ProblemOfTheDayState extends State<ProblemOfTheDay> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Daily reminders set for "${widget.problemTitle}"'),
+          content: Text(
+            '2-hour recurring reminders started for "${widget.problemTitle}"! 🔔',
+          ),
+          backgroundColor: Colors.green,
           action: SnackBarAction(
-            label: 'Undo',
+            label: 'Stop',
             onPressed: _cancelDailyReminders,
           ),
         ),
@@ -105,7 +138,8 @@ class _ProblemOfTheDayState extends State<ProblemOfTheDay> {
   }
 
   Future<void> _cancelDailyReminders() async {
-    await _notificationService.cancelDailyProblemReminders();
+    // Stop 2-hour recurring reminders
+    await _notificationService.stopRecurringDailyReminders();
 
     setState(() {
       _hasReminder = false;
@@ -113,7 +147,10 @@ class _ProblemOfTheDayState extends State<ProblemOfTheDay> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Daily reminders cancelled')),
+        const SnackBar(
+          content: Text('2-hour recurring reminders stopped 🔕'),
+          backgroundColor: Colors.orange,
+        ),
       );
     }
   }
